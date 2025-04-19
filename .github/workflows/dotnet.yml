@@ -1,0 +1,87 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: PracticeCI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  DOTNET_VERSION: '8.0.x' # Your .NET version
+  DOCKER_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME}}/practiceCI # Docker image name (replace with your Docker Hub repo)
+  DOCKER_IMAGE_TAG: latest # Docker image tag
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --no-restore
+      
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+      
+ # SonarQube Scanner
+    - name: Setup SonarQube Scanner
+      uses: sonarsource/sonarqube-scan-action@v3
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: https://sonarcloud.io # Replace with your SonarQube URL
+        
+      with:
+        args: >
+          -Dsonar.projectKey=practiceCI
+          -Dsonar.projectName=PRACTICECI
+          -Dsonar.sourceEncoding=UTF-8
+          -Dsonar.sources=.
+          -Dsonar.exclusions=**/bin/**,**/obj/**
+
+    # Snyk Dependency Scan
+    - name: Setup Snyk
+      uses: snyk/actions/setup@master
+    - name: Run Snyk to check for vulnerabilities
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      run: |
+        snyk auth $SNYK_TOKEN
+        snyk test --severity-threshold=high --org=your-snyk-org-id
+      continue-on-error: true # Allow pipeline to continue even if vulnerabilities are found 
+
+   # Build Docker image
+    - name: Build Docker image
+      run: docker build -t ${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }} .
+
+   # Trivy Vulnerability Scan
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@0.28.0
+      with:
+        image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
+        format: 'table'
+        exit-code: '1' # Fail the build if vulnerabilities are found
+        ignore-unfixed: true
+        severity: 'CRITICAL,HIGH'
+    
+   # Login to Docker Hub
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+        # Push Docker image to Docker Hub
+    - name: Push Docker image to Docker Hub
+      run: docker push ${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
