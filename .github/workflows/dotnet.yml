@@ -53,6 +53,12 @@ jobs:
         /d:sonar.sourceEncoding="UTF-8" \
         /d:sonar.exclusions="**/bin/**,**/obj/**"
 
+    - name: Build (Solution)
+      run: dotnet build YourSolution.sln --no-restore
+
+    - name: Test (Solution)
+      run: dotnet test YourSolution.sln --no-build --verbosity normal
+
     - name: End SonarQube scan
       run: dotnet sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
 
