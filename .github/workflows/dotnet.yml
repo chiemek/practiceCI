@@ -45,7 +45,7 @@ jobs:
     - name: Begin SonarQube scan
       run: |
         dotnet sonarscanner begin \
-        /k:"practiceCI" \
+        /k:"practiceci_practiceci" \
         /n:"PRACTICECI" \
         /o:"practiceci" \
         /d:sonar.login="${{ secrets.SONAR_TOKEN }}" \
